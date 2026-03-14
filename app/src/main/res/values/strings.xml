@@ -1,3 +1,13 @@
 <resources>
-    <string name="app_name">My voice app</string>
+    <string name="app_name">Voice Control</string>
+    <string name="app_title">Голосовое управление</string>
+    <string name="app_subtitle">Spotify / Музыка</string>
+    <string name="status_stopped">Остановлено</string>
+    <string name="status_starting">Запускаю…</string>
+    <string name="hint_stopped">Нажмите кнопку для запуска голосового управления</string>
+    <string name="hint_running">Скажите команду. Нажмите кнопку для остановки</string>
+    <string name="last_command_label">Последняя команда</string>
+    <string name="mic_description">Индикатор микрофона</string>
+    <string name="fab_description">Запустить или остановить</string>
+    <string name="available_commands">следующий · назад · пауза · играть · громче · тише</string>
 </resources>

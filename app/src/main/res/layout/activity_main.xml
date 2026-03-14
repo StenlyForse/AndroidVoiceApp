@@ -1,19 +1,152 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/bg_dark"
     tools:context=".MainActivity">
 
+    <!-- Заголовок -->
     <TextView
+        android:id="@+id/tvTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Hello World!"
+        android:text="@string/app_title"
+        android:textColor="@color/text_primary"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.05"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginTop="56dp" />
+
+    <TextView
+        android:id="@+id/tvSubtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/app_subtitle"
+        android:textColor="@color/text_secondary"
+        android:textSize="13sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvTitle"
+        android:layout_marginTop="4dp" />
+
+    <!-- Иконка микрофона — привязана сверху к subtitle, снизу к статусу -->
+    <ImageView
+        android:id="@+id/ivMic"
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:src="@drawable/ic_mic"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
+        app:layout_constraintBottom_toTopOf="@id/tvStatus"
+        android:layout_marginTop="32dp"
+        android:layout_marginBottom="24dp"
+        android:contentDescription="@string/mic_description" />
+
+    <!-- Статус -->
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/status_stopped"
+        android:textColor="@color/spotify_green"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ivMic"
+        app:layout_constraintBottom_toTopOf="@id/tvHint"
+        android:layout_marginBottom="8dp"
+        tools:text="Слушаю…" />
+
+    <!-- Подсказка -->
+    <TextView
+        android:id="@+id/tvHint"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="@string/hint_stopped"
+        android:textColor="@color/text_secondary"
+        android:textSize="13sp"
+        android:textAlignment="center"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvStatus"
+        app:layout_constraintBottom_toTopOf="@id/tvLastCommandLabel"
+        android:layout_marginHorizontal="32dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Лейбл последней команды -->
+    <TextView
+        android:id="@+id/tvLastCommandLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/last_command_label"
+        android:textColor="@color/text_hint"
+        android:textSize="11sp"
+        android:textAllCaps="true"
+        android:letterSpacing="0.1"
+        app:layout_constraintStart_toStartOf="@id/tvLastCommand"
+        app:layout_constraintBottom_toTopOf="@id/tvLastCommand"
+        android:layout_marginBottom="6dp" />
+
+    <!-- Последняя распознанная команда -->
+    <TextView
+        android:id="@+id/tvLastCommand"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="@color/text_primary"
+        android:textSize="15sp"
+        android:textAlignment="center"
+        android:background="@drawable/bg_command"
+        android:padding="14dp"
+        android:minHeight="52dp"
+        android:gravity="center"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/tvCommands"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginBottom="20dp"
+        tools:text="«следующий»" />
+
+    <!-- Список доступных команд -->
+    <TextView
+        android:id="@+id/tvCommands"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="@string/available_commands"
+        android:textColor="@color/text_hint"
+        android:textSize="12sp"
+        android:textAlignment="center"
+        android:lineSpacingExtra="6dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/fabToggle"
+        android:layout_marginHorizontal="32dp"
+        android:layout_marginBottom="28dp" />
+
+    <!-- Кнопка запуска/остановки -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabToggle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/ic_mic"
+        app:backgroundTint="@color/spotify_green"
+        app:tint="@color/bg_dark"
+        app:fabCustomSize="72dp"
+        app:maxImageSize="36dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:layout_marginBottom="48dp"
+        android:contentDescription="@string/fab_description" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
