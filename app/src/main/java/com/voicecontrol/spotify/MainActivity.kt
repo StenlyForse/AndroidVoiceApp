@@ -39,6 +39,7 @@ class MainActivity : AppCompatActivity() {
             val statusText = intent?.getStringExtra(VoiceCommandService.EXTRA_STATUS_TEXT) ?: return
             val lastCommand = intent.getStringExtra(VoiceCommandService.EXTRA_LAST_COMMAND) ?: ""
             val isListening = intent.getBooleanExtra(VoiceCommandService.EXTRA_IS_LISTENING, false)
+            val isWaiting = intent.getBooleanExtra(VoiceCommandService.EXTRA_IS_WAITING, false)
 
             tvStatus.text = statusText
 
@@ -46,14 +47,23 @@ class MainActivity : AppCompatActivity() {
                 tvLastCommand.text = "«$lastCommand»"
             }
 
-            if (isListening) {
-                ivMic.setColorFilter(getColor(R.color.spotify_green))
-                if (ivMic.animation == null) {
-                    ivMic.startAnimation(AnimationUtils.loadAnimation(this@MainActivity, R.anim.pulse))
+            when {
+                isWaiting -> {
+                    ivMic.setColorFilter(getColor(R.color.wake_yellow))
+                    if (ivMic.animation == null) {
+                        ivMic.startAnimation(AnimationUtils.loadAnimation(this@MainActivity, R.anim.pulse))
+                    }
                 }
-            } else {
-                ivMic.clearAnimation()
-                ivMic.setColorFilter(getColor(R.color.text_secondary))
+                isListening -> {
+                    ivMic.setColorFilter(getColor(R.color.spotify_green))
+                    if (ivMic.animation == null) {
+                        ivMic.startAnimation(AnimationUtils.loadAnimation(this@MainActivity, R.anim.pulse))
+                    }
+                }
+                else -> {
+                    ivMic.clearAnimation()
+                    ivMic.setColorFilter(getColor(R.color.text_secondary))
+                }
             }
         }
     }

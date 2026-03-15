@@ -8,10 +8,13 @@ import android.annotation.SuppressLint
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -32,6 +35,12 @@ class VoiceCommandService : Service() {
     private var recognitionThread: Thread? = null
     private var voskModel: Model? = null
 
+    private enum class RecognitionState { NORMAL, WAITING_FOR_COMMAND }
+    private var state = RecognitionState.NORMAL
+    private var audioFocusRequest: AudioFocusRequest? = null
+
+    private val wakeWordTimeout = Runnable { restoreFromWakeMode() }
+
     companion object {
         const val CHANNEL_ID = "VoiceControlChannel"
         const val NOTIFICATION_ID = 1
@@ -39,8 +48,11 @@ class VoiceCommandService : Service() {
         const val EXTRA_STATUS_TEXT = "status_text"
         const val EXTRA_LAST_COMMAND = "last_command"
         const val EXTRA_IS_LISTENING = "is_listening"
+        const val EXTRA_IS_WAITING = "is_waiting"
         const val TAG = "VoiceApp"
         private const val SAMPLE_RATE = 16000
+        private const val WAKE_WORD = "телефон"
+        private const val WAKE_TIMEOUT_MS = 5000L
 
         var isRunning = false
             private set
@@ -157,12 +169,7 @@ class VoiceCommandService : Service() {
                         val text = JSONObject(recognizer.result).optString("text", "")
                         Log.d(TAG, "Recognized: '$text'")
                         if (text.isNotEmpty()) {
-                            mainHandler.post {
-                                processCommand(text)
-                                mainHandler.postDelayed({
-                                    if (isActive) broadcast("Слушаю...", "", true)
-                                }, 600L)
-                            }
+                            mainHandler.post { processCommand(text) }
                         }
                     }
                 }
@@ -181,46 +188,110 @@ class VoiceCommandService : Service() {
         recognitionThread?.start()
     }
 
-    private fun processCommand(rawCommand: String) {
-        val cmd = rawCommand.lowercase().trim()
-        Log.d(TAG, "Processing: '$cmd'")
-        when {
+    private fun processCommand(rawText: String) {
+        val cmd = rawText.lowercase().trim()
+        Log.d(TAG, "processCommand state=$state text='$cmd'")
+        when (state) {
+            RecognitionState.NORMAL -> {
+                if (cmd.contains(WAKE_WORD)) {
+                    activateWakeMode()
+                } else if (executeCommand(cmd, rawText)) {
+                    mainHandler.postDelayed({
+                        if (isActive && state == RecognitionState.NORMAL) broadcast("Слушаю...", "", true)
+                    }, 1500L)
+                }
+            }
+            RecognitionState.WAITING_FOR_COMMAND -> {
+                if (cmd.contains(WAKE_WORD)) return  // игнорируем повторное кодовое слово
+                if (executeCommand(cmd, rawText)) restoreFromWakeMode()
+                // команда не распознана — ждём таймаута
+            }
+        }
+    }
+
+    // Возвращает true если команда найдена и выполнена
+    private fun executeCommand(cmd: String, rawText: String): Boolean {
+        return when {
             cmd.containsAny("следующий", "следующую", "дальше", "вперёд", "вперед", "next", "skip", "пропусти") -> {
                 dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT)
-                broadcast("Следующий трек", rawCommand, false)
+                broadcast("Следующий трек", rawText, false)
                 updateNotification("Следующий трек")
+                true
             }
             cmd.containsAny("предыдущий", "предыдущую", "назад", "прошлый", "прошлую", "previous", "back") -> {
-                // Двойное нажатие: первое — начало трека, второе — предыдущий трек
                 dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
                 mainHandler.postDelayed({ dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS) }, 150L)
-                broadcast("Предыдущий трек", rawCommand, false)
+                broadcast("Предыдущий трек", rawText, false)
                 updateNotification("Предыдущий трек")
+                true
             }
             cmd.containsAny("пауза", "стоп", "остановить", "остановись", "pause", "stop") -> {
                 dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
-                broadcast("Пауза", rawCommand, false)
+                broadcast("Пауза", rawText, false)
                 updateNotification("Пауза")
+                true
             }
             cmd.containsAny("играть", "играй", "продолжить", "воспроизвести", "продолжай", "продолжи", "давай", "play", "resume") -> {
                 dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
-                broadcast("Воспроизведение", rawCommand, false)
+                broadcast("Воспроизведение", rawText, false)
                 updateNotification("Воспроизведение")
+                true
             }
             cmd.containsAny("громче", "увеличь", "прибавь", "louder", "volume up") -> {
-                repeat(2) {
-                    audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
-                }
-                broadcast("Громче", rawCommand, false)
+                repeat(2) { audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI) }
+                broadcast("Громче", rawText, false)
                 updateNotification("Громкость увеличена")
+                true
             }
             cmd.containsAny("тише", "убавь", "потише", "quieter", "volume down") -> {
-                repeat(2) {
-                    audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
-                }
-                broadcast("Тише", rawCommand, false)
+                repeat(2) { audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI) }
+                broadcast("Тише", rawText, false)
                 updateNotification("Громкость уменьшена")
+                true
             }
+            else -> false
+        }
+    }
+
+    private fun activateWakeMode() {
+        state = RecognitionState.WAITING_FOR_COMMAND
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setWillPauseWhenDucked(false)
+                .build()
+            audioFocusRequest = req
+            audioManager.requestAudioFocus(req)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+        }
+        Log.d(TAG, "Wake mode activated, AudioFocus result=$result")
+        broadcast("Жду команду...", "", true, isWaiting = true)
+        updateNotification("Жду команду...")
+        mainHandler.removeCallbacks(wakeWordTimeout)
+        mainHandler.postDelayed(wakeWordTimeout, WAKE_TIMEOUT_MS)
+    }
+
+    private fun restoreFromWakeMode() {
+        state = RecognitionState.NORMAL
+        mainHandler.removeCallbacks(wakeWordTimeout)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+            audioFocusRequest = null
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(null)
+        }
+        Log.d(TAG, "Wake mode restored, AudioFocus abandoned")
+        if (isActive) {
+            broadcast("Слушаю...", "", true)
+            updateNotification("Слушаю...")
         }
     }
 
@@ -231,11 +302,12 @@ class VoiceCommandService : Service() {
         audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
     }
 
-    private fun broadcast(statusText: String, lastCommand: String, isListening: Boolean) {
+    private fun broadcast(statusText: String, lastCommand: String, isListening: Boolean, isWaiting: Boolean = false) {
         sendBroadcast(Intent(ACTION_STATUS_UPDATE).apply {
             putExtra(EXTRA_STATUS_TEXT, statusText)
             putExtra(EXTRA_LAST_COMMAND, lastCommand)
             putExtra(EXTRA_IS_LISTENING, isListening)
+            putExtra(EXTRA_IS_WAITING, isWaiting)
         })
     }
 
@@ -267,6 +339,12 @@ class VoiceCommandService : Service() {
         Log.d(TAG, "Service onDestroy")
         isActive = false
         isRunning = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(null)
+        }
         mainHandler.removeCallbacksAndMessages(null)
         // AudioRecord останавливается в finally блоке потока распознавания
         super.onDestroy()
