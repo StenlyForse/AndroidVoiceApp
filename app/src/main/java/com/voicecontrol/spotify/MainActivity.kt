@@ -14,8 +14,10 @@ import android.util.Log
 import android.view.animation.AnimationUtils
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.ImageButton
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -79,6 +81,14 @@ class MainActivity : AppCompatActivity() {
 
         fabToggle.setOnClickListener {
             if (VoiceCommandService.isRunning) stopVoiceService() else checkPermissionsAndStart()
+        }
+
+        findViewById<ImageButton>(R.id.btnHelp).setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.help_title)
+                .setMessage(getString(R.string.help_message))
+                .setPositiveButton(R.string.help_close, null)
+                .show()
         }
 
         updateUi()

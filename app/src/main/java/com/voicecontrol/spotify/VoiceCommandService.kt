@@ -202,7 +202,7 @@ class VoiceCommandService : Service() {
                 broadcast("Пауза", rawCommand, false)
                 updateNotification("Пауза")
             }
-            cmd.containsAny("играть", "продолжить", "воспроизвести", "продолжи", "давай", "play", "resume") -> {
+            cmd.containsAny("играть", "играй", "продолжить", "воспроизвести", "продолжай", "продолжи", "давай", "play", "resume") -> {
                 dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
                 broadcast("Воспроизведение", rawCommand, false)
                 updateNotification("Воспроизведение")

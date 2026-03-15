@@ -9,6 +9,20 @@
     android:background="@color/bg_dark"
     tools:context=".MainActivity">
 
+    <!-- Кнопка помощи -->
+    <ImageButton
+        android:id="@+id/btnHelp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@drawable/ic_help"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:tint="@color/text_secondary"
+        android:contentDescription="@string/help_description"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp" />
+
     <!-- Заголовок -->
     <TextView
         android:id="@+id/tvTitle"
@@ -112,28 +126,13 @@
         android:gravity="center"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/tvCommands"
+        app:layout_constraintBottom_toTopOf="@id/fabToggle"
         android:layout_marginHorizontal="24dp"
         android:layout_marginBottom="20dp"
         tools:text="«следующий»" />
 
-    <!-- Список доступных команд -->
-    <TextView
-        android:id="@+id/tvCommands"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="@string/available_commands"
-        android:textColor="@color/text_hint"
-        android:textSize="12sp"
-        android:textAlignment="center"
-        android:lineSpacingExtra="6dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/fabToggle"
-        android:layout_marginHorizontal="32dp"
-        android:layout_marginBottom="28dp" />
 
-    <!-- Кнопка запуска/остановки -->
+<!-- Кнопка запуска/остановки -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabToggle"
         android:layout_width="wrap_content"
