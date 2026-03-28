@@ -35,16 +35,23 @@ class MainActivity : AppCompatActivity() {
 
     private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            Log.d("VoiceApp", "Broadcast received in activity")
             val statusText = intent?.getStringExtra(VoiceCommandService.EXTRA_STATUS_TEXT) ?: return
             val lastCommand = intent.getStringExtra(VoiceCommandService.EXTRA_LAST_COMMAND) ?: ""
             val isListening = intent.getBooleanExtra(VoiceCommandService.EXTRA_IS_LISTENING, false)
             val isWaiting = intent.getBooleanExtra(VoiceCommandService.EXTRA_IS_WAITING, false)
+            val hasError = intent.getBooleanExtra(VoiceCommandService.EXTRA_HAS_ERROR, false)
 
             tvStatus.text = statusText
 
             if (lastCommand.isNotEmpty()) {
                 tvLastCommand.text = "«$lastCommand»"
+            }
+
+            if (hasError) {
+                ivMic.clearAnimation()
+                ivMic.setColorFilter(getColor(R.color.error_red))
+                showRetryDialog(statusText)
+                return
             }
 
             when {
@@ -185,6 +192,21 @@ class MainActivity : AppCompatActivity() {
         tvLastCommand.text = ""
         ivMic.clearAnimation()
         ivMic.setColorFilter(getColor(R.color.text_secondary))
+    }
+
+    private fun showRetryDialog(errorMessage: String) {
+        AlertDialog.Builder(this)
+            .setTitle("Ошибка")
+            .setMessage("$errorMessage\n\nПроверьте подключение к интернету и свободное место на устройстве.")
+            .setPositiveButton(R.string.retry) { _, _ ->
+                stopVoiceService()
+                startVoiceService()
+            }
+            .setNegativeButton("Закрыть") { _, _ ->
+                stopVoiceService()
+            }
+            .setCancelable(false)
+            .show()
     }
 
     private fun updateUi() {

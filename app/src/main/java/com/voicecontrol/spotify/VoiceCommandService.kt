@@ -14,10 +14,14 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.ToneGenerator
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import android.view.KeyEvent
 import androidx.core.app.NotificationCompat
@@ -38,6 +42,7 @@ class VoiceCommandService : Service() {
     private enum class RecognitionState { NORMAL, WAITING_FOR_COMMAND }
     private var state = RecognitionState.NORMAL
     private var audioFocusRequest: AudioFocusRequest? = null
+    private var savedVolume = -1
 
     private val wakeWordTimeout = Runnable { restoreFromWakeMode() }
 
@@ -49,6 +54,7 @@ class VoiceCommandService : Service() {
         const val EXTRA_LAST_COMMAND = "last_command"
         const val EXTRA_IS_LISTENING = "is_listening"
         const val EXTRA_IS_WAITING = "is_waiting"
+        const val EXTRA_HAS_ERROR = "has_error"
         const val TAG = "VoiceApp"
         private const val SAMPLE_RATE = 16000
         private const val WAKE_WORD = "телефон"
@@ -95,7 +101,7 @@ class VoiceCommandService : Service() {
             onError = { error ->
                 mainHandler.post {
                     updateNotification(error)
-                    broadcast(error, "", false)
+                    broadcast(error, "", false, hasError = true)
                 }
             }
         )
@@ -115,7 +121,7 @@ class VoiceCommandService : Service() {
                 Log.e(TAG, "Model load error: ${e.message}")
                 val msg = "Ошибка загрузки модели: ${e.message}"
                 mainHandler.post {
-                    broadcast(msg, "", false)
+                    broadcast(msg, "", false, hasError = true)
                     updateNotification(msg)
                 }
             }
@@ -253,6 +259,30 @@ class VoiceCommandService : Service() {
         }
     }
 
+    private fun vibrate() {
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            }
+            vibrator.vibrate(VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE))
+        } catch (e: Exception) {
+            Log.e(TAG, "Vibrate error: ${e.message}")
+        }
+    }
+
+    private fun playWakeBeep() {
+        try {
+            val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+            toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
+            mainHandler.postDelayed({ toneGen.release() }, 400)
+        } catch (e: Exception) {
+            Log.e(TAG, "Beep error: ${e.message}")
+        }
+    }
+
     private fun activateWakeMode() {
         state = RecognitionState.WAITING_FOR_COMMAND
         val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -271,7 +301,20 @@ class VoiceCommandService : Service() {
             @Suppress("DEPRECATION")
             audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
         }
-        Log.d(TAG, "Wake mode activated, AudioFocus result=$result")
+        // Дополнительно снижаем громкость до 5% от максимума
+        val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val targetVol = maxOf((maxVol * 0.05).toInt(), 1)
+        if (currentVol > targetVol) {
+            savedVolume = currentVol
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, 0)
+            Log.d(TAG, "Wake mode activated, vol $currentVol -> $targetVol, AudioFocus=$result")
+        } else {
+            savedVolume = -1
+            Log.d(TAG, "Wake mode activated, vol already low ($currentVol), AudioFocus=$result")
+        }
+        playWakeBeep()
+        vibrate()
         broadcast("Жду команду...", "", true, isWaiting = true)
         updateNotification("Жду команду...")
         mainHandler.removeCallbacks(wakeWordTimeout)
@@ -288,6 +331,12 @@ class VoiceCommandService : Service() {
             @Suppress("DEPRECATION")
             audioManager.abandonAudioFocus(null)
         }
+        // Восстанавливаем громкость
+        if (savedVolume > 0) {
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, savedVolume, 0)
+            Log.d(TAG, "Volume restored to $savedVolume")
+            savedVolume = -1
+        }
         Log.d(TAG, "Wake mode restored, AudioFocus abandoned")
         if (isActive) {
             broadcast("Слушаю...", "", true)
@@ -302,12 +351,13 @@ class VoiceCommandService : Service() {
         audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
     }
 
-    private fun broadcast(statusText: String, lastCommand: String, isListening: Boolean, isWaiting: Boolean = false) {
+    private fun broadcast(statusText: String, lastCommand: String, isListening: Boolean, isWaiting: Boolean = false, hasError: Boolean = false) {
         sendBroadcast(Intent(ACTION_STATUS_UPDATE).apply {
             putExtra(EXTRA_STATUS_TEXT, statusText)
             putExtra(EXTRA_LAST_COMMAND, lastCommand)
             putExtra(EXTRA_IS_LISTENING, isListening)
             putExtra(EXTRA_IS_WAITING, isWaiting)
+            putExtra(EXTRA_HAS_ERROR, hasError)
         })
     }
 
